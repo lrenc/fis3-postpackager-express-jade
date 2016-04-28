@@ -1,17 +1,19 @@
-# fis3-postpackager-express-jade
+## fis3-postpackager-express-jade
 
-只处理依赖管理的fis3 jade插件
+<p style="font-family: Microsoft YaHei;">只处理资源定位的fis3 jade插件</p>
 
-## 概述
+### 概述
 
-在express项目中，通常会选择jade作为模板引擎。然而fis的jade插件会直接将jade编译成html，这与express动态编译jade相矛盾。因此，我们需要一个只替换资源路径，不对源码进行其他编译操作的jade插件。
+在express项目中，有时会选择jade作为模板引擎。然而如何使用fis对前端项目进行管理成为了一个难题，fis的![jade插件](https://github.com/ssddi456/fis-parser-jade)会直接将jade编译成html，而express项目中，jade需交由node动态编译生成。因此，我们需要一个只替换、合并资源路径，不对源码进行编译操作的jade插件。
 
 
-## 安装
+### 安装
 
+```
 npm install -g fis3-postpackager-express-jade
+```
 
-## 使用
+### 使用
 
 ```javascript
 fis.match('::package', {
