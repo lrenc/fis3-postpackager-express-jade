@@ -1,6 +1,6 @@
 ## fis3-postpackager-express-jade
 
-<p style="font-family: 'Microsoft YaHei';">只处理资源定位的fis3 jade插件</p>
+只处理资源定位的fis3 jade插件
 
 ### 概述
 

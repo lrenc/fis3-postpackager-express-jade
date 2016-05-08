@@ -6,6 +6,29 @@ function extname(path) {
 }
 
 /**
+ * 过滤namespace
+ */
+function filterNamespace(path) {
+    var arr = path.split(':');
+    return arr.length === 1 ? arr[0] : arr[1];
+}
+
+/**
+ * 格式化路径 去除多余的路径分隔符
+ */
+function formatPath(path) {
+    var arr = path.split('/');
+    var res = [''];
+    for (var i = 1, l = arr.length; i < l; i ++) {
+        var item = arr[i];
+        if (item !== '') {
+            res.push(arr[i]);
+        }
+    }
+    return res.join('/');
+}
+
+/**
  * 转换targetPath为绝对路径（如果basePath是一个绝对路径的话）
  */
 function relative(basePath, targetPath) {
@@ -59,19 +82,24 @@ function parse(content, filePath, ret) {
     });
     // 先不处理打包
     var res = map.res;
+    
     for (var key in res) {
         if (!res.hasOwnProperty(key)) {
             continue;
         }
+        var path = filterNamespace(key);
         matchs.forEach(function(match) {
-            if (key === match.realPath) {
-                var index = match.index;
+            if (path === match.realPath) {
                 var code  = match.code;
+                var index = match.index;
+                var to    = formatPath(res[key].uri);
                 var relativePath = match.relativePath;
-                content[index] = code.replace(relativePath, res[key].uri);
+
+                content[index] = code.replace(relativePath, to);
             }
         });
     }
+    // linux下可能会有区别
     return content.join('\r\n');
 }
 
