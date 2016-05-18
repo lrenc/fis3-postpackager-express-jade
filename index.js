@@ -1,122 +1,121 @@
 /**
- * 获取后缀名
+ * 基于jade的解决方案
  */
-function extname(path) {
-    return path.slice(path.lastIndexOf('.'));
-}
+var path = require('path');
+var util = require('./lib/util');
 
-/**
+/** 
  * 过滤namespace
  */
-function filterNamespace(path) {
-    var arr = path.split(':');
-    return arr.length === 1 ? arr[0] : arr[1];
-}
-
-/**
- * 格式化路径 去除多余的路径分隔符
- */
-function formatPath(path) {
-    var arr = path.split('/');
-    var res = [''];
-    for (var i = 1, l = arr.length; i < l; i ++) {
-        var item = arr[i];
-        if (item !== '') {
-            res.push(arr[i]);
-        }
+function trimNamespace(p) {
+    var index = p.indexOf(':');
+    if (!~index) {
+        return p;
     }
-    return res.join('/');
+    return '/' + p.slice(index + 1);
 }
 
-/**
- * 转换targetPath为绝对路径（如果basePath是一个绝对路径的话）
- */
-function relative(basePath, targetPath) {
-    basePath   = basePath.split('/');
-    targetPath = targetPath.split('/');
-    // 去掉文件名
-    basePath.pop();
-    
-    if (basePath[0] === '') {
-        basePath.shift();
+function getNamespace(p) {
+    var index = p.indexOf(':');
+    if (!~index) {
+        return '';
     }
-    targetPath.forEach(function(item) {
-        if (item === '.') {
-            return;
-        }
-        if (item === '..') {
-            basePath.pop();
-        } else {
-            basePath.push(item);
-        }
-    });
-    return basePath.join('/');
+    return p.slice(0, p.indexOf(':') + 1);
 }
 
-/**
- * 对源码进行处理
- */
-function parse(content, filePath, ret) {
-    var map = ret.map;
-    content = content.split('\r\n');
-    // 这里先这么处理一下
-    var pattens = [
-        /^\s*link\(.*href="(.*)"\)$/,
-        /^\s*script\(.*src="(.*)"\)$/
-    ];
-    var matchs = [];
-    // 收集link 和 script标签
-    content.forEach(function(line, index) {
-        // 依次遍历patten
-        pattens.forEach(function(patten) {
-            var res = line.match(patten);
-            if (res && res.length) {
-                matchs.push({
-                    index: index,
-                    code : line,
-                    relativePath: res[1],
-                    realPath: relative(filePath, res[1])
+
+function parseQuote(current, content) {
+    var pattens = {
+        link  : /^\s*link\(.*href="(.*)"\)$/,
+        script: /^\s*script\(.*src="(.*)"\)$/
+    };
+    var quotes = [];
+    var length = pattens.length;
+
+    content.forEach(function(code, line) {
+        for (var type in pattens) {
+            if (!pattens.hasOwnProperty(type)) {
+                continue;
+            }
+            var patten = pattens[type];
+            var result = code.match(patten);
+
+            if (result && result.length) {
+                quotes.push({
+                    line: line,
+                    code: code,
+                    relative: result[1],
+                    path: util.resolve(current, result[1]),
+                    type: type,
                 });
+                break;
             }
-        });
-    });
-    // 先不处理打包
-    var res = map.res;
-    
-    for (var key in res) {
-        if (!res.hasOwnProperty(key)) {
-            continue;
         }
-        var path = filterNamespace(key);
-        matchs.forEach(function(match) {
-            if (path === match.realPath) {
-                var code  = match.code;
-                var index = match.index;
-                var to    = formatPath(res[key].uri);
-                var relativePath = match.relativePath;
+    });
+    return quotes;
+}
 
-                content[index] = code.replace(relativePath, to);
+
+/**
+ * 分析依赖 后根遍历
+ */
+function analyseDeps(root, res, deps, depList) {
+    if (res[root].deps) {
+        res[root].deps.forEach(function(dep) {
+            if (~depList.indexOf(dep)) {
+                return;
             }
+            // 对子目录进行递归
+            analyseDeps(dep, res, deps, depList);
+            deps.push(res[dep].uri);
+            depList.push(dep);
         });
     }
-    // linux下可能会有区别
-    return content.join('\r\n');
 }
 
 module.exports = function (ret, conf, settings, opt) {
     var src = ret.src;
-    for (var key in src) {
-        if (!src.hasOwnProperty(key)) {
-            continue;
+    var map = ret.map;
+    var res = map.res;
+    // namespace
+    var ns  = getNamespace(Object.keys(res)[0]);
+    // 首先找出所有文件列表
+    var files = [];
+
+    Object.keys(src).forEach(function(file) {
+        // 选择jade文件
+        if (src[file].rExt === '.jade') {
+            files.push(file);
         }
-        if (extname(key) === '.jade') {
-            // 这里处理文件内容
-            var file    = src[key];
-            var content = file.getContent();
+    });
+
+    files.forEach(function(file) {
+        // 获取文件内容，并按行拆分成数组
+        var content = src[file].getContent().split('\r\n');
+        // 对每一行进行分析，拿到静态资源的引用列表
+        var quotes  = parseQuote(file, content);
+        // 依赖列表
+        var depList = [];
+        // console.log(quotes);
+        quotes.forEach(function(quote) {
+            var line     = quote.line;
+            var code     = quote.code;
+            var relative = quote.relative;
+            // 取出quote的path并加上namespace
+            var key = ns + quote.path.slice(1);
+            // 通过key查找res
+            var deps = [];
+
+            analyseDeps(key, res, deps, depList);
             
-            file.setContent(
-                parse(content, key, ret)
-            );
-        }
-    }
+            deps.forEach(function(dep) {
+                // console.log(dep);
+                content.splice(line++, 0, code.replace(relative, dep));
+            });
+
+            content[line] = code.replace(relative, res[key].uri);
+        });
+        // 重新赋值
+        src[file].setContent(content.join('\r\n'));
+    });
 }
