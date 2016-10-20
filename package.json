@@ -1,6 +1,6 @@
 {
   "name": "fis3-postpackager-express-jade",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "只处理依赖管理的fis3 jade插件",
   "main": "index.js",
   "repository": {
