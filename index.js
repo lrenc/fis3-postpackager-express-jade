@@ -4,7 +4,9 @@
 var path = require('path');
 var util = require('./lib/util');
 
-/** 
+var eol  = require('os').EOL;
+
+/**
  * 过滤namespace
  */
 function trimNamespace(p) {
@@ -14,20 +16,24 @@ function trimNamespace(p) {
     }
     return '/' + p.slice(index + 1);
 }
-
+/**
+ * 获取namespace
+ */
 function getNamespace(p) {
     var index = p.indexOf(':');
     if (!~index) {
         return '';
     }
-    return p.slice(0, p.indexOf(':') + 1);
+    return p.slice(0, index + 1);
 }
 
-
 function parseQuote(current, content) {
+    // 目前只支持单行分析
     var pattens = {
-        link  : /^\s*link\(.*href="(.*)"\)$/,
-        script: /^\s*script\(.*src="(.*)"\)$/
+        link  : /^\s*link\(.*href="(.*)"\)\s*$/,
+        script: /^\s*script\(.*src="(.*)"\)\s*$/,
+        // img不允许换号
+        img   : /^\s*img\(.*src="(.*)"\)\s*/
     };
     var quotes = [];
     var length = pattens.length;
@@ -39,7 +45,7 @@ function parseQuote(current, content) {
             }
             var patten = pattens[type];
             var result = code.match(patten);
-
+            // 当前行命中了规则
             if (result && result.length) {
                 quotes.push({
                     line: line,
@@ -52,6 +58,7 @@ function parseQuote(current, content) {
             }
         }
     });
+    // 返回所有待替换行
     return quotes;
 }
 
@@ -84,14 +91,15 @@ module.exports = function (ret, conf, settings, opt) {
 
     Object.keys(src).forEach(function(file) {
         // 选择jade文件
-        if (src[file].rExt === '.jade') {
+        if (src[file].rExt === '.jade' ||
+            src[file].rExt === '.pug') {
             files.push(file);
         }
     });
 
     files.forEach(function(file) {
         // 获取文件内容，并按行拆分成数组
-        var content = src[file].getContent().split('\r\n');
+        var content = src[file].getContent().split(eol);
         // 对每一行进行分析，拿到静态资源的引用列表
         var quotes  = parseQuote(file, content);
         // 依赖列表
@@ -107,7 +115,7 @@ module.exports = function (ret, conf, settings, opt) {
             var deps = [];
 
             analyseDeps(key, res, deps, depList);
-            
+
             deps.forEach(function(dep) {
                 // console.log(dep);
                 content.splice(line++, 0, code.replace(relative, dep));
@@ -116,6 +124,6 @@ module.exports = function (ret, conf, settings, opt) {
             content[line] = code.replace(relative, res[key].uri);
         });
         // 重新赋值
-        src[file].setContent(content.join('\r\n'));
+        src[file].setContent(content.join(eol));
     });
 }
