@@ -67,7 +67,7 @@ function parseQuote(current, content) {
  * 分析依赖 后根遍历
  */
 function analyseDeps(root, res, deps, depList) {
-    if (res[root].deps) {
+    if (res[root] && res[root].deps) {
         res[root].deps.forEach(function(dep) {
             if (~depList.indexOf(dep)) {
                 return;
@@ -99,7 +99,7 @@ module.exports = function (ret, conf, settings, opt) {
 
     files.forEach(function(file) {
         // 获取文件内容，并按行拆分成数组
-        var content = src[file].getContent().split(eol);
+        var content = src[file].getContent().toString('utf-8').split(eol);
         // 对每一行进行分析，拿到静态资源的引用列表
         var quotes  = parseQuote(file, content);
         // 依赖列表
@@ -120,8 +120,9 @@ module.exports = function (ret, conf, settings, opt) {
                 // console.log(dep);
                 content.splice(line++, 0, code.replace(relative, dep));
             });
-
-            content[line] = code.replace(relative, res[key].uri);
+            if (res[key] && res[key].uri) {
+                content[line] = code.replace(relative, res[key].uri);
+            }
         });
         // 重新赋值
         src[file].setContent(content.join(eol));
